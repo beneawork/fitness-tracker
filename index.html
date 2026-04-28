@@ -49,9 +49,9 @@
     </header>
 
     <div class="tabs">
-      <button class="tab-btn active" id="btn-food" onclick="showTab('food')">Food Log</button>
-      <button class="tab-btn" id="btn-gym" onclick="showTab('gym')">Gym</button>
-      <button class="tab-btn" id="btn-history" onclick="showTab('history')">History</button>
+      <button class="tab-btn active" data-tab="food">Food Log</button>
+      <button class="tab-btn" data-tab="gym">Gym</button>
+      <button class="tab-btn" data-tab="history">History</button>
     </div>
 
     <!-- FOOD LOG TAB -->
@@ -182,19 +182,28 @@
     const SUPABASE_URL = 'https://ooysvctsadagnsncxyqs.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9veXN2Y3RzYWRhZ25zbmN4eXFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNjE0NzMsImV4cCI6MjA5MjkzNzQ3M30.mtrJnenyKCYXWnsZk3sEjGzz_DmYfS1zgQWup3DlSU4';
     
-    const { createClient } = window.supabase;
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-    // SIMPLE TAB SWITCHING
-    function showTab(tabName) {
-      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-      document.getElementById(tabName).classList.add('active');
-      document.getElementById('btn-' + tabName).classList.add('active');
+    let supabase;
+    if (typeof window.supabase !== 'undefined' && !window.sbClient) {
+      const { createClient } = window.supabase;
+      supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      window.sbClient = supabase;
+    } else if (window.sbClient) {
+      supabase = window.sbClient;
     }
 
     // INITIALIZE
     document.addEventListener('DOMContentLoaded', () => {
+      // TAB SWITCHING - SETUP INSIDE DOMContentLoaded
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const tabName = this.getAttribute('data-tab');
+          document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+          document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+          document.getElementById(tabName).classList.add('active');
+          this.classList.add('active');
+        });
+      });
+
       const today = new Date().toISOString().split('T')[0];
       document.getElementById('foodDate').value = today;
       document.getElementById('exerciseDate').value = today;
