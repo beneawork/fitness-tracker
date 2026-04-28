@@ -54,7 +54,6 @@
       <button class="tab-btn" data-tab="history">History</button>
     </div>
 
-    <!-- FOOD LOG TAB -->
     <div id="food" class="tab-content active">
       <div class="stats-grid">
         <div class="stat-card">
@@ -107,13 +106,12 @@
             <input type="number" id="foodProtein">
           </div>
         </div>
-        <button onclick="addFood()">+ Add Food</button>
+        <button onclick="window.app.addFood()">+ Add Food</button>
       </div>
 
       <div id="foodLog"></div>
     </div>
 
-    <!-- GYM TAB -->
     <div id="gym" class="tab-content">
       <div class="box">
         <h3>Log Exercise</h3>
@@ -139,19 +137,18 @@
             <input type="number" id="exerciseSets">
           </div>
         </div>
-        <button onclick="addExercise()">+ Add Exercise</button>
+        <button onclick="window.app.addExercise()">+ Add Exercise</button>
       </div>
 
       <h3>Today's Workout</h3>
       <div id="gymLog"></div>
     </div>
 
-    <!-- HISTORY TAB -->
     <div id="history" class="tab-content">
       <h3>History & Stats</h3>
       <div class="form-group">
         <label>View by Date</label>
-        <input type="date" id="historyDate" onchange="loadHistory()">
+        <input type="date" id="historyDate" onchange="window.app.loadHistory()">
       </div>
 
       <div class="stats-grid">
@@ -179,274 +176,269 @@
   </div>
 
   <script>
-    const SUPABASE_URL = 'https://ooysvctsadagnsncxyqs.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9veXN2Y3RzYWRhZ25zbmN4eXFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNjE0NzMsImV4cCI6MjA5MjkzNzQ3M30.mtrJnenyKCYXWnsZk3sEjGzz_DmYfS1zgQWup3DlSU4';
+window.app = {
+  db: null,
+  
+  init() {
+    const { createClient } = window.supabase;
+    this.db = createClient(
+      'https://ooysvctsadagnsncxyqs.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9veXN2Y3RzYWRhZ25zbmN4eXFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNjE0NzMsImV4cCI6MjA5MjkzNzQ3M30.mtrJnenyKCYXWnsZk3sEjGzz_DmYfS1zgQWup3DlSU4'
+    );
     
-    let supabase;
-    if (typeof window.supabase !== 'undefined' && !window.sbClient) {
-      const { createClient } = window.supabase;
-      supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      window.sbClient = supabase;
-    } else if (window.sbClient) {
-      supabase = window.sbClient;
+    this.setupTabs();
+    this.setupDates();
+    this.loadFoodLog();
+    this.loadGymLog();
+    this.loadHistory();
+    
+    document.getElementById('foodDate').addEventListener('change', () => this.loadFoodLog());
+    document.getElementById('exerciseDate').addEventListener('change', () => this.loadGymLog());
+  },
+  
+  setupTabs() {
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const tab = e.target.getAttribute('data-tab');
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById(tab).classList.add('active');
+        e.target.classList.add('active');
+      });
+    });
+  },
+  
+  setupDates() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('foodDate').value = today;
+    document.getElementById('exerciseDate').value = today;
+    document.getElementById('historyDate').value = today;
+  },
+  
+  async addFood() {
+    const date = document.getElementById('foodDate').value;
+    const mealType = document.getElementById('mealType').value;
+    const name = document.getElementById('foodName').value;
+    const calories = parseInt(document.getElementById('foodCals').value) || 0;
+    const protein = parseInt(document.getElementById('foodProtein').value) || 0;
+
+    if (!mealType || !name || !calories) {
+      alert('Fill in all fields');
+      return;
     }
 
-    // INITIALIZE
-    document.addEventListener('DOMContentLoaded', () => {
-      // TAB SWITCHING - SETUP INSIDE DOMContentLoaded
-      document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-          const tabName = this.getAttribute('data-tab');
-          document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-          document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-          document.getElementById(tabName).classList.add('active');
-          this.classList.add('active');
-        });
-      });
+    try {
+      const { error } = await this.db.from('foods').insert([{ date, meal_type: mealType, name, calories, protein }]);
+      if (error) throw error;
+      document.getElementById('foodName').value = '';
+      document.getElementById('foodCals').value = '';
+      document.getElementById('foodProtein').value = '';
+      document.getElementById('mealType').value = '';
+      this.loadFoodLog();
+    } catch (error) {
+      alert('Error: ' + error.message);
+    }
+  },
 
-      const today = new Date().toISOString().split('T')[0];
-      document.getElementById('foodDate').value = today;
-      document.getElementById('exerciseDate').value = today;
-      document.getElementById('historyDate').value = today;
-      loadFoodLog();
-      loadGymLog();
-      loadHistory();
+  async addExercise() {
+    const date = document.getElementById('exerciseDate').value;
+    const name = document.getElementById('exerciseName').value;
+    const weight = parseFloat(document.getElementById('exerciseWeight').value) || 0;
+    const reps = parseInt(document.getElementById('exerciseReps').value) || 0;
+    const sets = parseInt(document.getElementById('exerciseSets').value) || 0;
+
+    if (!name || !weight || !reps || !sets) {
+      alert('Fill in all fields');
+      return;
+    }
+
+    try {
+      const { error } = await this.db.from('exercises').insert([{ date, name, weight, reps, sets }]);
+      if (error) throw error;
+      document.getElementById('exerciseName').value = '';
+      document.getElementById('exerciseWeight').value = '';
+      document.getElementById('exerciseReps').value = '';
+      document.getElementById('exerciseSets').value = '';
+      this.loadGymLog();
+    } catch (error) {
+      alert('Error: ' + error.message);
+    }
+  },
+
+  async loadFoodLog() {
+    const date = document.getElementById('foodDate').value;
+    try {
+      const { data } = await this.db.from('foods').select('*').eq('date', date).order('created_at', { ascending: true });
+      const html = this.renderMeals(data || []);
+      document.getElementById('foodLog').innerHTML = html;
+      this.updateFoodStats(data || []);
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  },
+
+  async loadGymLog() {
+    const date = document.getElementById('exerciseDate').value;
+    try {
+      const { data } = await this.db.from('exercises').select('*').eq('date', date).order('created_at', { ascending: true });
+      let html = '';
+      if (!data || data.length === 0) {
+        html = '<p style="color: #999;">No exercises logged</p>';
+      } else {
+        html = data.map(ex => `
+          <div class="entry-item">
+            <div class="entry-info">
+              <div class="entry-name">${ex.name}</div>
+              <div class="entry-meta">${ex.weight}kg × ${ex.reps} reps × ${ex.sets} sets</div>
+            </div>
+            <button onclick="window.app.delEx(${ex.id})">Delete</button>
+          </div>
+        `).join('');
+      }
+      document.getElementById('gymLog').innerHTML = html;
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  },
+
+  renderMeals(foods) {
+    const meals = ['breakfast', 'lunch', 'dinner'];
+    let html = '';
+    meals.forEach(type => {
+      const mealFoods = foods.filter(f => f.meal_type === type);
+      const cal = mealFoods.reduce((sum, f) => sum + f.calories, 0);
+      const protein = mealFoods.reduce((sum, f) => sum + f.protein, 0);
+      html += `<div class="meal-section">
+        <div class="meal-header">
+          <div class="meal-title">${type.charAt(0).toUpperCase() + type.slice(1)}</div>
+          <div class="meal-stats">${cal} cal | ${protein}g protein</div>
+        </div>
+        ${mealFoods.map(f => `
+          <div class="entry-item">
+            <div class="entry-info">
+              <div class="entry-name">${f.name}</div>
+              <div class="entry-meta">${f.calories} cal | ${f.protein}g protein</div>
+            </div>
+            <button onclick="window.app.delFood(${f.id})">Delete</button>
+          </div>
+        `).join('')}
+      </div>`;
     });
 
-    // ADD FOOD
-    async function addFood() {
-      const date = document.getElementById('foodDate').value;
-      const mealType = document.getElementById('mealType').value;
-      const name = document.getElementById('foodName').value;
-      const calories = parseInt(document.getElementById('foodCals').value) || 0;
-      const protein = parseInt(document.getElementById('foodProtein').value) || 0;
-
-      if (!mealType || !name || !calories) {
-        alert('Fill in all fields');
-        return;
-      }
-
-      try {
-        const { error } = await supabase.from('foods').insert([{ date, meal_type: mealType, name, calories, protein }]);
-        if (error) throw error;
-        document.getElementById('foodName').value = '';
-        document.getElementById('foodCals').value = '';
-        document.getElementById('foodProtein').value = '';
-        document.getElementById('mealType').value = '';
-        loadFoodLog();
-      } catch (error) {
-        alert('Error: ' + error.message);
-      }
-    }
-
-    // ADD EXERCISE
-    async function addExercise() {
-      const date = document.getElementById('exerciseDate').value;
-      const name = document.getElementById('exerciseName').value;
-      const weight = parseFloat(document.getElementById('exerciseWeight').value) || 0;
-      const reps = parseInt(document.getElementById('exerciseReps').value) || 0;
-      const sets = parseInt(document.getElementById('exerciseSets').value) || 0;
-
-      if (!name || !weight || !reps || !sets) {
-        alert('Fill in all fields');
-        return;
-      }
-
-      try {
-        const { error } = await supabase.from('exercises').insert([{ date, name, weight, reps, sets }]);
-        if (error) throw error;
-        document.getElementById('exerciseName').value = '';
-        document.getElementById('exerciseWeight').value = '';
-        document.getElementById('exerciseReps').value = '';
-        document.getElementById('exerciseSets').value = '';
-        loadGymLog();
-      } catch (error) {
-        alert('Error: ' + error.message);
-      }
-    }
-
-    // LOAD FOOD LOG
-    async function loadFoodLog() {
-      const date = document.getElementById('foodDate').value;
-      try {
-        const { data } = await supabase.from('foods').select('*').eq('date', date).order('created_at', { ascending: true });
-        const html = renderMeals(data || []);
-        document.getElementById('foodLog').innerHTML = html;
-        updateFoodStats(data || []);
-      } catch (error) {
-        console.error('Error:', error);
-      }
-    }
-
-    // LOAD GYM LOG
-    async function loadGymLog() {
-      const date = document.getElementById('exerciseDate').value;
-      try {
-        const { data } = await supabase.from('exercises').select('*').eq('date', date).order('created_at', { ascending: true });
-        let html = '';
-        if (!data || data.length === 0) {
-          html = '<p style="color: #999;">No exercises logged</p>';
-        } else {
-          html = data.map(ex => `
-            <div class="entry-item">
-              <div class="entry-info">
-                <div class="entry-name">${ex.name}</div>
-                <div class="entry-meta">${ex.weight}kg × ${ex.reps} reps × ${ex.sets} sets</div>
-              </div>
-              <button onclick="delEx(${ex.id})">Delete</button>
+    const snacks = foods.filter(f => f.meal_type.startsWith('snack'));
+    if (snacks.length > 0) {
+      const cal = snacks.reduce((sum, f) => sum + f.calories, 0);
+      const protein = snacks.reduce((sum, f) => sum + f.protein, 0);
+      html += `<div class="meal-section">
+        <div class="meal-header">
+          <div class="meal-title">Snacks</div>
+          <div class="meal-stats">${cal} cal | ${protein}g protein</div>
+        </div>
+        ${snacks.map(f => `
+          <div class="entry-item">
+            <div class="entry-info">
+              <div class="entry-name">${f.meal_type} - ${f.name}</div>
+              <div class="entry-meta">${f.calories} cal | ${f.protein}g protein</div>
             </div>
-          `).join('');
-        }
-        document.getElementById('gymLog').innerHTML = html;
-      } catch (error) {
-        console.error('Error:', error);
-      }
-    }
-
-    // RENDER MEALS
-    function renderMeals(foods) {
-      const meals = ['breakfast', 'lunch', 'dinner'];
-      let html = '';
-      meals.forEach(type => {
-        const mealFoods = foods.filter(f => f.meal_type === type);
-        const cal = mealFoods.reduce((sum, f) => sum + f.calories, 0);
-        const protein = mealFoods.reduce((sum, f) => sum + f.protein, 0);
-        html += `<div class="meal-section">
-          <div class="meal-header">
-            <div class="meal-title">${type.charAt(0).toUpperCase() + type.slice(1)}</div>
-            <div class="meal-stats">${cal} cal | ${protein}g protein</div>
+            <button onclick="window.app.delFood(${f.id})">Delete</button>
           </div>
-          ${mealFoods.map(f => `
-            <div class="entry-item">
-              <div class="entry-info">
-                <div class="entry-name">${f.name}</div>
-                <div class="entry-meta">${f.calories} cal | ${f.protein}g protein</div>
-              </div>
-              <button onclick="delFood(${f.id})">Delete</button>
-            </div>
-          `).join('')}
-        </div>`;
-      });
-
-      const snacks = foods.filter(f => f.meal_type.startsWith('snack'));
-      if (snacks.length > 0) {
-        const cal = snacks.reduce((sum, f) => sum + f.calories, 0);
-        const protein = snacks.reduce((sum, f) => sum + f.protein, 0);
-        html += `<div class="meal-section">
-          <div class="meal-header">
-            <div class="meal-title">Snacks</div>
-            <div class="meal-stats">${cal} cal | ${protein}g protein</div>
-          </div>
-          ${snacks.map(f => `
-            <div class="entry-item">
-              <div class="entry-info">
-                <div class="entry-name">${f.meal_type} - ${f.name}</div>
-                <div class="entry-meta">${f.calories} cal | ${f.protein}g protein</div>
-              </div>
-              <button onclick="delFood(${f.id})">Delete</button>
-            </div>
-          `).join('')}
-        </div>`;
-      }
-      return html || '<p style="color: #999;">No foods logged</p>';
+        `).join('')}
+      </div>`;
     }
+    return html || '<p style="color: #999;">No foods logged</p>';
+  },
 
-    // UPDATE STATS
-    function updateFoodStats(foods) {
-      const cal = foods.reduce((sum, f) => sum + f.calories, 0);
-      const protein = foods.reduce((sum, f) => sum + f.protein, 0);
-      const meals = foods.filter(f => ['breakfast', 'lunch', 'dinner'].includes(f.meal_type)).length;
-      const snacks = foods.filter(f => f.meal_type.startsWith('snack')).length;
-      document.getElementById('dailyCals').textContent = `${cal}/1600`;
-      document.getElementById('dailyProtein').textContent = `${protein}/150g`;
-      document.getElementById('mealsCount').textContent = meals;
-      document.getElementById('snacksCount').textContent = snacks;
+  updateFoodStats(foods) {
+    const cal = foods.reduce((sum, f) => sum + f.calories, 0);
+    const protein = foods.reduce((sum, f) => sum + f.protein, 0);
+    const meals = foods.filter(f => ['breakfast', 'lunch', 'dinner'].includes(f.meal_type)).length;
+    const snacks = foods.filter(f => f.meal_type.startsWith('snack')).length;
+    document.getElementById('dailyCals').textContent = `${cal}/1600`;
+    document.getElementById('dailyProtein').textContent = `${protein}/150g`;
+    document.getElementById('mealsCount').textContent = meals;
+    document.getElementById('snacksCount').textContent = snacks;
+  },
+
+  async delFood(id) {
+    if (!confirm('Delete?')) return;
+    try {
+      await this.db.from('foods').delete().eq('id', id);
+      this.loadFoodLog();
+    } catch (error) {
+      alert('Error: ' + error.message);
     }
+  },
 
-    // DELETE FOOD
-    async function delFood(id) {
-      if (!confirm('Delete?')) return;
-      try {
-        await supabase.from('foods').delete().eq('id', id);
-        loadFoodLog();
-      } catch (error) {
-        alert('Error: ' + error.message);
-      }
+  async delEx(id) {
+    if (!confirm('Delete?')) return;
+    try {
+      await this.db.from('exercises').delete().eq('id', id);
+      this.loadGymLog();
+    } catch (error) {
+      alert('Error: ' + error.message);
     }
+  },
 
-    // DELETE EXERCISE
-    async function delEx(id) {
-      if (!confirm('Delete?')) return;
-      try {
-        await supabase.from('exercises').delete().eq('id', id);
-        loadGymLog();
-      } catch (error) {
-        alert('Error: ' + error.message);
-      }
+  async loadHistory() {
+    try {
+      const { data: foods } = await this.db.from('foods').select('*');
+      const { data: exercises } = await this.db.from('exercises').select('*');
+      const dates = new Set([...(foods || []).map(f => f.date), ...(exercises || []).map(e => e.date)]);
+      const cal = (foods || []).reduce((sum, f) => sum + f.calories, 0);
+      const protein = (foods || []).reduce((sum, f) => sum + f.protein, 0);
+      document.getElementById('daysLogged').textContent = dates.size;
+      document.getElementById('totalEntries').textContent = (foods?.length || 0) + (exercises?.length || 0);
+      document.getElementById('avgCals').textContent = dates.size > 0 ? Math.round(cal / dates.size) : 0;
+      document.getElementById('avgProtein').textContent = dates.size > 0 ? Math.round(protein / dates.size) + 'g' : '0g';
+      this.showDateSummary();
+    } catch (error) {
+      console.error('Error:', error);
     }
+  },
 
-    // LOAD HISTORY
-    async function loadHistory() {
-      try {
-        const { data: foods } = await supabase.from('foods').select('*');
-        const { data: exercises } = await supabase.from('exercises').select('*');
-        const dates = new Set([...(foods || []).map(f => f.date), ...(exercises || []).map(e => e.date)]);
-        const cal = (foods || []).reduce((sum, f) => sum + f.calories, 0);
-        const protein = (foods || []).reduce((sum, f) => sum + f.protein, 0);
-        document.getElementById('daysLogged').textContent = dates.size;
-        document.getElementById('totalEntries').textContent = (foods?.length || 0) + (exercises?.length || 0);
-        document.getElementById('avgCals').textContent = dates.size > 0 ? Math.round(cal / dates.size) : 0;
-        document.getElementById('avgProtein').textContent = dates.size > 0 ? Math.round(protein / dates.size) + 'g' : '0g';
-        showDateSummary();
-      } catch (error) {
-        console.error('Error:', error);
-      }
-    }
-
-    // SHOW DATE SUMMARY
-    async function showDateSummary() {
-      const date = document.getElementById('historyDate').value;
-      try {
-        const { data: foods } = await supabase.from('foods').select('*').eq('date', date);
-        const { data: exercises } = await supabase.from('exercises').select('*').eq('date', date);
-        let html = `<p style="color: #999; font-size: 13px; margin-bottom: 1rem;">Date: ${date}</p>`;
-        if (foods && foods.length > 0) {
-          ['breakfast', 'lunch', 'dinner'].forEach(type => {
-            const mealFoods = foods.filter(f => f.meal_type === type);
-            if (mealFoods.length > 0) {
-              const cal = mealFoods.reduce((sum, f) => sum + f.calories, 0);
-              const protein = mealFoods.reduce((sum, f) => sum + f.protein, 0);
-              html += `<p style="font-weight: 600; margin: 0 0 0.5rem; font-size: 13px;">${type.charAt(0).toUpperCase() + type.slice(1)}</p>`;
-              mealFoods.forEach(f => html += `<p style="font-size: 12px; margin: 0 0 0.25rem; color: #666;">  ${f.name} - ${f.calories} cal, ${f.protein}g protein</p>`);
-              html += `<p style="font-size: 12px; margin: 0 0 1rem; font-weight: 600; color: #378add;">${cal} cal, ${protein}g protein</p>`;
-            }
-          });
-          const snackFoods = foods.filter(f => f.meal_type.startsWith('snack'));
-          if (snackFoods.length > 0) {
-            const cal = snackFoods.reduce((sum, f) => sum + f.calories, 0);
-            const protein = snackFoods.reduce((sum, f) => sum + f.protein, 0);
-            html += `<p style="font-weight: 600; margin: 0.5rem 0 0.5rem; font-size: 13px;">Snacks</p>`;
-            snackFoods.forEach(f => html += `<p style="font-size: 12px; margin: 0 0 0.25rem; color: #666;">  ${f.meal_type}: ${f.name}</p>`);
+  async showDateSummary() {
+    const date = document.getElementById('historyDate').value;
+    try {
+      const { data: foods } = await this.db.from('foods').select('*').eq('date', date);
+      const { data: exercises } = await this.db.from('exercises').select('*').eq('date', date);
+      let html = `<p style="color: #999; font-size: 13px; margin-bottom: 1rem;">Date: ${date}</p>`;
+      if (foods && foods.length > 0) {
+        ['breakfast', 'lunch', 'dinner'].forEach(type => {
+          const mealFoods = foods.filter(f => f.meal_type === type);
+          if (mealFoods.length > 0) {
+            const cal = mealFoods.reduce((sum, f) => sum + f.calories, 0);
+            const protein = mealFoods.reduce((sum, f) => sum + f.protein, 0);
+            html += `<p style="font-weight: 600; margin: 0 0 0.5rem; font-size: 13px;">${type.charAt(0).toUpperCase() + type.slice(1)}</p>`;
+            mealFoods.forEach(f => html += `<p style="font-size: 12px; margin: 0 0 0.25rem; color: #666;">  ${f.name} - ${f.calories} cal, ${f.protein}g protein</p>`);
             html += `<p style="font-size: 12px; margin: 0 0 1rem; font-weight: 600; color: #378add;">${cal} cal, ${protein}g protein</p>`;
           }
-          const totalCal = foods.reduce((sum, f) => sum + f.calories, 0);
-          const totalProtein = foods.reduce((sum, f) => sum + f.protein, 0);
-          html += `<p style="font-size: 12px; margin: 1rem 0 0; font-weight: 600; color: #378add; border-top: 1px solid #ddd; padding-top: 1rem;">Daily Total: ${totalCal} cal, ${totalProtein}g protein</p>`;
-        } else {
-          html += '<p style="color: #999;">No food logged</p>';
+        });
+        const snackFoods = foods.filter(f => f.meal_type.startsWith('snack'));
+        if (snackFoods.length > 0) {
+          const cal = snackFoods.reduce((sum, f) => sum + f.calories, 0);
+          const protein = snackFoods.reduce((sum, f) => sum + f.protein, 0);
+          html += `<p style="font-weight: 600; margin: 0.5rem 0 0.5rem; font-size: 13px;">Snacks</p>`;
+          snackFoods.forEach(f => html += `<p style="font-size: 12px; margin: 0 0 0.25rem; color: #666;">  ${f.meal_type}: ${f.name}</p>`);
+          html += `<p style="font-size: 12px; margin: 0 0 1rem; font-weight: 600; color: #378add;">${cal} cal, ${protein}g protein</p>`;
         }
-        if (exercises && exercises.length > 0) {
-          html += `<p style="font-weight: 600; margin: 1.5rem 0 0.5rem; font-size: 13px; border-top: 1px solid #ddd; padding-top: 1rem;">Exercises (${exercises.length})</p>`;
-          exercises.forEach(e => html += `<p style="font-size: 12px; margin: 0 0 0.25rem; color: #666;">${e.name}: ${e.weight}kg × ${e.reps} × ${e.sets}</p>`);
-        }
-        document.getElementById('historySummary').innerHTML = html;
-      } catch (error) {
-        console.error('Error:', error);
+        const totalCal = foods.reduce((sum, f) => sum + f.calories, 0);
+        const totalProtein = foods.reduce((sum, f) => sum + f.protein, 0);
+        html += `<p style="font-size: 12px; margin: 1rem 0 0; font-weight: 600; color: #378add; border-top: 1px solid #ddd; padding-top: 1rem;">Daily Total: ${totalCal} cal, ${totalProtein}g protein</p>`;
+      } else {
+        html += '<p style="color: #999;">No food logged</p>';
       }
+      if (exercises && exercises.length > 0) {
+        html += `<p style="font-weight: 600; margin: 1.5rem 0 0.5rem; font-size: 13px; border-top: 1px solid #ddd; padding-top: 1rem;">Exercises (${exercises.length})</p>`;
+        exercises.forEach(e => html += `<p style="font-size: 12px; margin: 0 0 0.25rem; color: #666;">${e.name}: ${e.weight}kg × ${e.reps} × ${e.sets}</p>`);
+      }
+      document.getElementById('historySummary').innerHTML = html;
+    } catch (error) {
+      console.error('Error:', error);
     }
+  }
+};
 
-    document.getElementById('foodDate').addEventListener('change', loadFoodLog);
-    document.getElementById('exerciseDate').addEventListener('change', loadGymLog);
+document.addEventListener('DOMContentLoaded', () => window.app.init());
   </script>
 </body>
 </html>
