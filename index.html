@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Fitness Tracker</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; }
-    .container { max-width: 800px; margin: 0 auto; padding: 1rem; }
+    .container { max-width: 900px; margin: 0 auto; padding: 1rem; }
     header { background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
     h1 { font-size: 24px; font-weight: 600; }
-    .tabs { display: flex; gap: 1rem; margin-bottom: 1.5rem; background: white; padding: 1rem; border-radius: 8px; border-bottom: 2px solid #ddd; }
+    .tabs { display: flex; gap: 1rem; margin-bottom: 1.5rem; background: white; padding: 1rem; border-radius: 8px; border-bottom: 2px solid #ddd; flex-wrap: wrap; }
     .tab-btn { padding: 0.75rem 1.5rem; border: none; background: transparent; cursor: pointer; font-weight: 500; color: #666; border-bottom: 3px solid transparent; margin-bottom: -1rem; }
     .tab-btn.active { color: #378add; border-bottom-color: #378add; }
     .tab-content { display: none; background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
@@ -27,7 +28,8 @@
     .stat-label { font-size: 12px; color: #666; margin-bottom: 0.5rem; }
     .stat-value { font-size: 24px; font-weight: 600; color: #378add; }
     .meal-section { margin-bottom: 1.5rem; }
-    .meal-header { background: #f8f9fa; padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center; }
+    .meal-header { background: #f8f9fa; padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+    .meal-header:hover { background: #e8e8e8; }
     .meal-title { font-weight: 600; font-size: 14px; }
     .meal-stats { font-size: 12px; color: #666; }
     .entry-item { background: #f8f9fa; padding: 0.75rem; border-radius: 6px; margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center; }
@@ -40,6 +42,15 @@
     .form-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
     .box { background: #f8f9fa; padding: 1.5rem; border-radius: 6px; margin-bottom: 1.5rem; }
     h3 { margin-bottom: 1rem; }
+    h2 { font-size: 18px; margin-bottom: 1rem; margin-top: 1.5rem; }
+    .session-header { background: #378add; color: white; padding: 1rem; border-radius: 6px; margin-bottom: 0.75rem; cursor: pointer; }
+    .session-header:hover { background: #2a6bb8; }
+    .session-exercises { margin-left: 1rem; margin-bottom: 1rem; }
+    .chart-container { position: relative; height: 300px; margin-bottom: 2rem; }
+    .progress-item { background: #f8f9fa; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; }
+    .progress-name { font-weight: 600; margin-bottom: 0.5rem; }
+    .progress-meta { font-size: 13px; color: #666; }
+    .progress-trend { font-size: 12px; color: #378add; font-weight: 600; margin-top: 0.5rem; }
   </style>
 </head>
 <body>
@@ -50,8 +61,9 @@
 
     <div class="tabs">
       <button class="tab-btn active" data-tab="food">Food Log</button>
-      <button class="tab-btn" data-tab="gym">Gym</button>
+      <button class="tab-btn" data-tab="gym">Workouts</button>
       <button class="tab-btn" data-tab="history">History</button>
+      <button class="tab-btn" data-tab="insights">Progress</button>
     </div>
 
     <div id="food" class="tab-content active">
@@ -114,10 +126,14 @@
 
     <div id="gym" class="tab-content">
       <div class="box">
-        <h3>Log Exercise</h3>
+        <h3>Log Workout</h3>
         <div class="form-group">
           <label>Date</label>
           <input type="date" id="exerciseDate">
+        </div>
+        <div class="form-group">
+          <label>Workout Session (e.g. Chest & Biceps)</label>
+          <input type="text" id="sessionName" placeholder="e.g. Chest & Biceps, Back Day, Leg Day">
         </div>
         <div class="form-group">
           <label>Exercise Name</label>
@@ -145,7 +161,7 @@
     </div>
 
     <div id="history" class="tab-content">
-      <h3>History & Stats</h3>
+      <h3>History</h3>
       <div class="form-group">
         <label>View by Date</label>
         <input type="date" id="historyDate" onchange="window.app.loadHistory()">
@@ -170,14 +186,34 @@
         </div>
       </div>
 
-      <h3>Selected Date Summary</h3>
+      <h2>Food</h2>
       <div id="historySummary"></div>
+
+      <h2>Workouts</h2>
+      <div id="workoutSummary"></div>
+    </div>
+
+    <div id="insights" class="tab-content">
+      <h2>Calorie & Protein Trends</h2>
+      <div class="chart-container">
+        <canvas id="trendsChart"></canvas>
+      </div>
+
+      <h2>Exercise Progression</h2>
+      <div class="form-group">
+        <label>Select Exercise</label>
+        <select id="exerciseSelect" onchange="window.app.showExerciseProgress()">
+          <option value="">-- Loading --</option>
+        </select>
+      </div>
+      <div id="progressDisplay"></div>
     </div>
   </div>
 
   <script>
 window.app = {
   db: null,
+  trendsChart: null,
   
   init() {
     const { createClient } = window.supabase;
@@ -191,6 +227,8 @@ window.app = {
     this.loadFoodLog();
     this.loadGymLog();
     this.loadHistory();
+    this.loadExerciseList();
+    this.loadTrendsChart();
     
     document.getElementById('foodDate').addEventListener('change', () => this.loadFoodLog());
     document.getElementById('exerciseDate').addEventListener('change', () => this.loadGymLog());
@@ -204,6 +242,9 @@ window.app = {
         document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
         document.getElementById(tab).classList.add('active');
         e.target.classList.add('active');
+        if (tab === 'insights') {
+          setTimeout(() => this.trendsChart?.resize(), 100);
+        }
       });
     });
   },
@@ -235,6 +276,7 @@ window.app = {
       document.getElementById('foodProtein').value = '';
       document.getElementById('mealType').value = '';
       this.loadFoodLog();
+      this.loadTrendsChart();
     } catch (error) {
       alert('Error: ' + error.message);
     }
@@ -242,24 +284,27 @@ window.app = {
 
   async addExercise() {
     const date = document.getElementById('exerciseDate').value;
+    const sessionName = document.getElementById('sessionName').value;
     const name = document.getElementById('exerciseName').value;
     const weight = parseFloat(document.getElementById('exerciseWeight').value) || 0;
     const reps = parseInt(document.getElementById('exerciseReps').value) || 0;
     const sets = parseInt(document.getElementById('exerciseSets').value) || 0;
 
-    if (!name || !weight || !reps || !sets) {
+    if (!name || !weight || !reps || !sets || !sessionName) {
       alert('Fill in all fields');
       return;
     }
 
     try {
-      const { error } = await this.db.from('exercises').insert([{ date, name, weight, reps, sets }]);
+      const { error } = await this.db.from('exercises').insert([{ date, session_name: sessionName, name, weight, reps, sets }]);
       if (error) throw error;
+      document.getElementById('sessionName').value = '';
       document.getElementById('exerciseName').value = '';
       document.getElementById('exerciseWeight').value = '';
       document.getElementById('exerciseReps').value = '';
       document.getElementById('exerciseSets').value = '';
       this.loadGymLog();
+      this.loadExerciseList();
     } catch (error) {
       alert('Error: ' + error.message);
     }
@@ -280,25 +325,47 @@ window.app = {
   async loadGymLog() {
     const date = document.getElementById('exerciseDate').value;
     try {
-      const { data } = await this.db.from('exercises').select('*').eq('date', date).order('created_at', { ascending: true });
-      let html = '';
-      if (!data || data.length === 0) {
-        html = '<p style="color: #999;">No exercises logged</p>';
-      } else {
-        html = data.map(ex => `
-          <div class="entry-item">
-            <div class="entry-info">
-              <div class="entry-name">${ex.name}</div>
-              <div class="entry-meta">${ex.weight}kg × ${ex.reps} reps × ${ex.sets} sets</div>
-            </div>
-            <button onclick="window.app.delEx(${ex.id})">Delete</button>
-          </div>
-        `).join('');
-      }
+      const { data } = await this.db.from('exercises').select('*').eq('date', date).order('session_name, created_at', { ascending: true });
+      const html = this.renderSessions(data || []);
       document.getElementById('gymLog').innerHTML = html;
     } catch (error) {
       console.error('Error:', error);
     }
+  },
+
+  renderSessions(exercises) {
+    if (!exercises || exercises.length === 0) {
+      return '<p style="color: #999;">No exercises logged</p>';
+    }
+
+    const sessions = {};
+    exercises.forEach(ex => {
+      const session = ex.session_name || 'Unnamed';
+      if (!sessions[session]) sessions[session] = [];
+      sessions[session].push(ex);
+    });
+
+    return Object.entries(sessions).map(([session, exs]) => `
+      <div class="meal-section">
+        <div class="meal-header" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+          <div>
+            <div class="meal-title">${session}</div>
+            <div class="meal-stats">${exs.length} exercises</div>
+          </div>
+        </div>
+        <div class="session-exercises">
+          ${exs.map(ex => `
+            <div class="entry-item">
+              <div class="entry-info">
+                <div class="entry-name">${ex.name}</div>
+                <div class="entry-meta">${ex.weight}kg × ${ex.reps}r × ${ex.sets}s</div>
+              </div>
+              <button onclick="window.app.delEx(${ex.id})">Delete</button>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `).join('');
   },
 
   renderMeals(foods) {
@@ -364,6 +431,7 @@ window.app = {
     try {
       await this.db.from('foods').delete().eq('id', id);
       this.loadFoodLog();
+      this.loadTrendsChart();
     } catch (error) {
       alert('Error: ' + error.message);
     }
@@ -374,6 +442,7 @@ window.app = {
     try {
       await this.db.from('exercises').delete().eq('id', id);
       this.loadGymLog();
+      this.loadExerciseList();
     } catch (error) {
       alert('Error: ' + error.message);
     }
@@ -402,6 +471,7 @@ window.app = {
       const { data: foods } = await this.db.from('foods').select('*').eq('date', date);
       const { data: exercises } = await this.db.from('exercises').select('*').eq('date', date);
       let html = `<p style="color: #999; font-size: 13px; margin-bottom: 1rem;">Date: ${date}</p>`;
+      
       if (foods && foods.length > 0) {
         ['breakfast', 'lunch', 'dinner'].forEach(type => {
           const mealFoods = foods.filter(f => f.meal_type === type);
@@ -427,11 +497,115 @@ window.app = {
       } else {
         html += '<p style="color: #999;">No food logged</p>';
       }
-      if (exercises && exercises.length > 0) {
-        html += `<p style="font-weight: 600; margin: 1.5rem 0 0.5rem; font-size: 13px; border-top: 1px solid #ddd; padding-top: 1rem;">Exercises (${exercises.length})</p>`;
-        exercises.forEach(e => html += `<p style="font-size: 12px; margin: 0 0 0.25rem; color: #666;">${e.name}: ${e.weight}kg × ${e.reps} × ${e.sets}</p>`);
-      }
       document.getElementById('historySummary').innerHTML = html;
+
+      let workoutHtml = '';
+      if (exercises && exercises.length > 0) {
+        const sessions = {};
+        exercises.forEach(ex => {
+          const session = ex.session_name || 'Unnamed';
+          if (!sessions[session]) sessions[session] = [];
+          sessions[session].push(ex);
+        });
+        
+        workoutHtml = Object.entries(sessions).map(([session, exs]) => `
+          <div class="meal-section">
+            <div class="meal-header">
+              <div class="meal-title">${session}</div>
+              <div class="meal-stats">${exs.length} exercises</div>
+            </div>
+            ${exs.map(e => `<p style="font-size: 12px; margin: 0.5rem 0 0; color: #666;">${e.name}: ${e.weight}kg × ${e.reps}r × ${e.sets}s</p>`).join('')}
+          </div>
+        `).join('');
+      } else {
+        workoutHtml = '<p style="color: #999;">No workouts logged</p>';
+      }
+      document.getElementById('workoutSummary').innerHTML = workoutHtml;
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  },
+
+  async loadTrendsChart() {
+    try {
+      const { data: foods } = await this.db.from('foods').select('*').order('date', { ascending: true });
+      
+      const dailyData = {};
+      (foods || []).forEach(f => {
+        const date = f.date;
+        if (!dailyData[date]) dailyData[date] = { cal: 0, protein: 0 };
+        dailyData[date].cal += f.calories;
+        dailyData[date].protein += f.protein;
+      });
+
+      const dates = Object.keys(dailyData).sort().slice(-30);
+      const cals = dates.map(d => dailyData[d].cal);
+      const proteins = dates.map(d => dailyData[d].protein);
+
+      const ctx = document.getElementById('trendsChart');
+      if (this.trendsChart) this.trendsChart.destroy();
+      
+      this.trendsChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: dates,
+          datasets: [
+            { label: 'Calories', data: cals, borderColor: '#378add', backgroundColor: 'rgba(55, 138, 221, 0.1)', tension: 0.3 },
+            { label: 'Protein (g)', data: proteins, borderColor: '#28a745', backgroundColor: 'rgba(40, 167, 69, 0.1)', tension: 0.3 }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true } } }
+      });
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  },
+
+  async loadExerciseList() {
+    try {
+      const { data: exercises } = await this.db.from('exercises').select('name').order('name');
+      const unique = [...new Set((exercises || []).map(e => e.name))];
+      const select = document.getElementById('exerciseSelect');
+      select.innerHTML = '<option value="">-- Select Exercise --</option>' + unique.map(name => `<option value="${name}">${name}</option>`).join('');
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  },
+
+  async showExerciseProgress() {
+    const exerciseName = document.getElementById('exerciseSelect').value;
+    if (!exerciseName) {
+      document.getElementById('progressDisplay').innerHTML = '';
+      return;
+    }
+
+    try {
+      const { data: exercises } = await this.db.from('exercises').select('*').eq('name', exerciseName).order('date', { ascending: true });
+      
+      if (!exercises || exercises.length === 0) {
+        document.getElementById('progressDisplay').innerHTML = '<p style="color: #999;">No data</p>';
+        return;
+      }
+
+      const html = exercises.map((ex, idx) => {
+        const prev = exercises[idx - 1];
+        let trend = '';
+        if (prev) {
+          const weightGain = ex.weight - prev.weight;
+          const volumeGain = (ex.weight * ex.reps * ex.sets) - (prev.weight * prev.reps * prev.sets);
+          if (weightGain !== 0) trend = ` ${weightGain > 0 ? '📈' : '📉'} ${weightGain > 0 ? '+' : ''}${weightGain.toFixed(1)}kg`;
+          if (volumeGain !== 0) trend += ` (Vol: ${volumeGain > 0 ? '📈' : '📉'}${volumeGain > 0 ? '+' : ''}${Math.round(volumeGain)})`;
+        }
+        return `
+          <div class="progress-item">
+            <div class="progress-name">${ex.date}</div>
+            <div class="progress-meta">${ex.weight}kg × ${ex.reps}r × ${ex.sets}s = ${(ex.weight * ex.reps * ex.sets).toFixed(0)} total kg</div>
+            ${trend ? `<div class="progress-trend">${trend}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('progressDisplay').innerHTML = html;
     } catch (error) {
       console.error('Error:', error);
     }
